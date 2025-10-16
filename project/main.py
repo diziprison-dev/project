@@ -22,6 +22,9 @@ class ProductPriceCalculator:
         
         self.setup_ui()
         self.load_data()
+        
+        # Force focus on first entry after UI is ready
+        self.root.after(100, self.force_initial_focus)
     
     def safe_float(self, value):
         """Convert Turkish number format to float safely"""
@@ -41,9 +44,6 @@ class ProductPriceCalculator:
             return float(str_value)
         except (ValueError, TypeError):
             return 0.0
-        
-        # Force focus on first entry after UI is ready
-        self.root.after(100, self.force_initial_focus)
         
     def setup_ui(self):
         # Main frame
