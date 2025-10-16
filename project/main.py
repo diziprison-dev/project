@@ -92,6 +92,7 @@ class ProductPriceCalculator:
         self.exchange_entry.bind('<Button-1>', self.on_exchange_click)
         self.exchange_entry.bind('<FocusIn>', self.on_exchange_focus)
         self.exchange_entry.bind('<Key>', self.on_exchange_key)
+        self.exchange_entry.bind('<KeyRelease>', self.on_exchange_change)
         
         ttk.Label(control_frame, text="Katsayı:").grid(row=1, column=0, sticky=tk.W, pady=2)
         self.coeff_entry = ttk.Entry(control_frame, textvariable=self.coefficient, width=10)
@@ -99,6 +100,7 @@ class ProductPriceCalculator:
         self.coeff_entry.bind('<Button-1>', self.on_coeff_click)
         self.coeff_entry.bind('<FocusIn>', self.on_coeff_focus)
         self.coeff_entry.bind('<Key>', self.on_coeff_key)
+        self.coeff_entry.bind('<KeyRelease>', self.on_coeff_change)
         
         # Update button
         update_btn = ttk.Button(control_frame, text="Fiyatları Güncelle", 
@@ -133,6 +135,7 @@ class ProductPriceCalculator:
         self.price1_entry.bind('<Button-1>', self.on_price1_click)
         self.price1_entry.bind('<FocusIn>', self.on_price1_focus)
         self.price1_entry.bind('<Key>', self.on_price1_key)
+        self.price1_entry.bind('<KeyRelease>', self.on_price1_change)
         
         # Calculated prices display
         prices_display = ttk.Frame(price_frame)
@@ -274,6 +277,33 @@ class ProductPriceCalculator:
         if self.price1_entry.selection_present():
             self.price1_entry.delete(0, tk.END)
     
+    def on_exchange_change(self, event):
+        """Handle exchange rate entry change - convert Turkish decimal format"""
+        value = self.exchange_entry.get()
+        if ',' in value:
+            # Convert Turkish decimal format to English
+            converted_value = value.replace(',', '.')
+            self.exchange_entry.delete(0, tk.END)
+            self.exchange_entry.insert(0, converted_value)
+    
+    def on_coeff_change(self, event):
+        """Handle coefficient entry change - convert Turkish decimal format"""
+        value = self.coeff_entry.get()
+        if ',' in value:
+            # Convert Turkish decimal format to English
+            converted_value = value.replace(',', '.')
+            self.coeff_entry.delete(0, tk.END)
+            self.coeff_entry.insert(0, converted_value)
+    
+    def on_price1_change(self, event):
+        """Handle price1 entry change - convert Turkish decimal format"""
+        value = self.price1_entry.get()
+        if ',' in value:
+            # Convert Turkish decimal format to English
+            converted_value = value.replace(',', '.')
+            self.price1_entry.delete(0, tk.END)
+            self.price1_entry.insert(0, converted_value)
+    
     def force_initial_focus(self):
         """Force focus on search entry to make all entries responsive"""
         self.search_entry.focus_set()
@@ -281,7 +311,16 @@ class ProductPriceCalculator:
         
     def load_data(self):
         try:
+            # Load Excel file with proper decimal handling
             self.df = pd.read_excel('sturmmm.xlsx')
+            
+            # Ensure numeric columns are properly converted
+            numeric_columns = ['price1', 'price2', 'price3', 'price4', 'price5', 'buyingPrice', 'tax']
+            for col in numeric_columns:
+                if col in self.df.columns:
+                    # Convert to string first, then apply safe_float
+                    self.df[col] = self.df[col].apply(lambda x: self.safe_float(x) if pd.notna(x) else x)
+            
             self.filtered_df = self.df.copy()
             self.populate_tree()
             messagebox.showinfo("Başarılı", f"{len(self.df)} ürün yüklendi.")
@@ -437,14 +476,18 @@ tax: {product['tax']}%
             # Update buying prices for all products
             for idx, row in self.df.iterrows():
                 if pd.notna(row['price1']) and pd.notna(row['tax']):
-                    price1_excl_tax = row['price1'] / (1 + row['tax'] / 100)
+                    # Use safe_float to ensure proper conversion
+                    price1 = self.safe_float(row['price1'])
+                    tax_rate = self.safe_float(row['tax'])
+                    
+                    price1_excl_tax = price1 / (1 + tax_rate / 100)
                     self.df.at[idx, 'buyingPrice'] = exchange_rate * coefficient * price1_excl_tax
                     
                     # Update other prices (el ile girilen price1 ile çarp)
-                    self.df.at[idx, 'price2'] = row['price1'] * 1.10
-                    self.df.at[idx, 'price3'] = row['price1'] * 1.05
-                    self.df.at[idx, 'price4'] = row['price1'] * 1.15
-                    self.df.at[idx, 'price5'] = row['price1'] * 1.20
+                    self.df.at[idx, 'price2'] = price1 * 1.10
+                    self.df.at[idx, 'price3'] = price1 * 1.05
+                    self.df.at[idx, 'price4'] = price1 * 1.15
+                    self.df.at[idx, 'price5'] = price1 * 1.20
             
             # Refresh display
             self.search_products()
@@ -603,34 +646,34 @@ tax: {product['tax']}%
                         product_row = matching_rows.iloc[0]
                         product_idx = matching_rows.index[0]
                         
-                    # Get tax rate
-                    tax_rate = self.safe_float(product_row['tax']) if pd.notna(product_row['tax']) else 10
-                    
-                    # Calculate new prices
-                    price1_excl_tax = new_price1 / (1 + tax_rate / 100)
-                    price2 = price1_excl_tax * 1.10  # KDV hariç price1'den hesapla
-                    price3 = price1_excl_tax * 1.05  # KDV hariç price1'den hesapla
-                    price4 = price1_excl_tax * 1.15  # KDV hariç price1'den hesapla
-                    price5 = price1_excl_tax * 1.20  # KDV hariç price1'den hesapla
-                    
-                    # Calculate buying price
-                    try:
-                        exchange_rate = self.safe_float(self.exchange_rate.get()) if self.exchange_rate.get() else 1.0
-                        coefficient = self.safe_float(self.coefficient.get()) if self.coefficient.get() else 1.0
-                    except (ValueError, TypeError):
-                        exchange_rate = 1.0
-                        coefficient = 1.0
-                    buying_price = exchange_rate * coefficient * price1_excl_tax
-                    
-                    # Update the dataframe with KDV excluded price1
-                    self.df.at[product_idx, 'price1'] = price1_excl_tax  # KDV hariç price1
-                    self.df.at[product_idx, 'price2'] = price2
-                    self.df.at[product_idx, 'price3'] = price3
-                    self.df.at[product_idx, 'price4'] = price4
-                    self.df.at[product_idx, 'price5'] = price5
-                    self.df.at[product_idx, 'buyingPrice'] = buying_price
-                    
-                    updated_count += 1
+                        # Get tax rate
+                        tax_rate = self.safe_float(product_row['tax']) if pd.notna(product_row['tax']) else 10
+                        
+                        # Calculate new prices
+                        price1_excl_tax = new_price1 / (1 + tax_rate / 100)
+                        price2 = price1_excl_tax * 1.10  # KDV hariç price1'den hesapla
+                        price3 = price1_excl_tax * 1.05  # KDV hariç price1'den hesapla
+                        price4 = price1_excl_tax * 1.15  # KDV hariç price1'den hesapla
+                        price5 = price1_excl_tax * 1.20  # KDV hariç price1'den hesapla
+                        
+                        # Calculate buying price
+                        try:
+                            exchange_rate = self.safe_float(self.exchange_rate.get()) if self.exchange_rate.get() else 1.0
+                            coefficient = self.safe_float(self.coefficient.get()) if self.coefficient.get() else 1.0
+                        except (ValueError, TypeError):
+                            exchange_rate = 1.0
+                            coefficient = 1.0
+                        buying_price = exchange_rate * coefficient * price1_excl_tax
+                        
+                        # Update the dataframe with KDV excluded price1
+                        self.df.at[product_idx, 'price1'] = price1_excl_tax  # KDV hariç price1
+                        self.df.at[product_idx, 'price2'] = price2
+                        self.df.at[product_idx, 'price3'] = price3
+                        self.df.at[product_idx, 'price4'] = price4
+                        self.df.at[product_idx, 'price5'] = price5
+                        self.df.at[product_idx, 'buyingPrice'] = buying_price
+                        
+                        updated_count += 1
                         
                 except Exception as e:
                     print(f"Error updating product {stock_code}: {e}")
@@ -656,8 +699,14 @@ tax: {product['tax']}%
                             price3 = price1_excl_tax * 1.05  # KDV hariç price1'den hesapla
                             price4 = price1_excl_tax * 1.15  # KDV hariç price1'den hesapla
                             price5 = price1_excl_tax * 1.20  # KDV hariç price1'den hesapla
-                            exchange_rate = self.exchange_rate.get()
-                            coefficient = self.coefficient.get()
+                            
+                            # Use safe_float for exchange rate and coefficient
+                            try:
+                                exchange_rate = self.safe_float(self.exchange_rate.get()) if self.exchange_rate.get() else 1.0
+                                coefficient = self.safe_float(self.coefficient.get()) if self.coefficient.get() else 1.0
+                            except (ValueError, TypeError):
+                                exchange_rate = 1.0
+                                coefficient = 1.0
                             buying_price = exchange_rate * coefficient * price1_excl_tax
                             
                             self.filtered_df.at[filtered_idx, 'price1'] = price1_excl_tax  # KDV hariç price1
