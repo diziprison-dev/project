@@ -1,0 +1,8 @@
+1-stockCode ve label sütunlarında arama yapabileceğim bir arama butonu olacak ürünü bulmam için 
+2-price1 sütununa elle girebileceğim bir döviz fiyatı olacak bu fiyatı girdğimde tax sütunundaki kdv rakamını düşüp rakamı çıkaracak 
+örnek : kdv oranı 10 olan bir ürün 50$ fiyatı var fakat ben bunu sistemime aktarırken kdv hariç aktarıyorum sistem kendi otomatik kdv ekliyor.
+Sonuç: 50/1,10 : 45,45$ olarak sistemde görünecek 
+3-price2(1,10),price3(1,05),price4(1,15),price5(1,20) bu sütunlarda price1 sütunundaki rakamı baz alacak ve verilen parantez içindeki
+oranlarla çarpılacak
+4-buyingPrice kolonu TL olarak sisteme yayınlayacağımız sütun olacak formül şu seklide olacak kur ve kat sayı girebileceğim 2 ayrı buton olacak 
+kur*katsayı*price1 olarak fiyatlayacağım bir sistem 
